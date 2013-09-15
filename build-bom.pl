@@ -12,7 +12,7 @@
 use strict;
 use warnings;
 use utf8;
-use Data::Dumper;
+#use Data::Dumper;
 
 use Getopt::Long;
 use XML::LibXML;
@@ -77,7 +77,7 @@ sub print_bom {
 
 	# Split the path.
 	my @spath = split(/[\/\\]/, $schematic);
-	print "\n" . $spath[-1] . ":\n\n";
+	print $spath[-1] . ":\n\n";
 
 	foreach my $key (keys $items) {
 		my $part = $items->{$key};
