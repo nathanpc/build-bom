@@ -7,6 +7,7 @@
 # TODO:
 #   - Just run it in a directory and it'll automatically get all the *.sch files, and display the BOMs for each one of them.
 #   - Add a option to list the parts in the order that they appear in the board layout (to make hand assembling easier).
+#   - Export to various formats like CSV, JSON, HTML, etc.
 
 use strict;
 use warnings;
@@ -31,6 +32,11 @@ my $parts = $xml->findnodes("/eagle/drawing/schematic/parts/part");
 my $items = {};
 
 foreach my $part ($parts->get_nodelist()) {
+	# Should this part be ignored?
+	if ($part->getAttribute("library") =~ /(supply[0-9]*)/) {
+		next;
+	}
+
 	my $value = $part->getAttribute("value");
 	if (!defined $value) {
 		$value = "";
