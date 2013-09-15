@@ -28,20 +28,24 @@ my $schematic = $ARGV[-1];
 my $parser = XML::LibXML->new();
 my $xml = $parser->parse_file($schematic);
 
+# Find the nodes.
 my $parts = $xml->findnodes("/eagle/drawing/schematic/parts/part");
 my $items = {};
 
+# Parse each element.
 foreach my $part ($parts->get_nodelist()) {
 	# Should this part be ignored?
 	if ($part->getAttribute("library") =~ /(supply[0-9]*)/) {
 		next;
 	}
 
+	# Get a value (if defined).
 	my $value = $part->getAttribute("value");
 	if (!defined $value) {
 		$value = "";
 	}
 
+	# Create the item hash.
 	my $key_name = $part->getAttribute("deviceset") . $value;
 	my $item = {
 		"quantity" => 1,
@@ -61,5 +65,3 @@ foreach my $part ($parts->get_nodelist()) {
 }
 
 print Dumper($items);
-
-# TODO: Make a regexp to ignore parts from certain libraries.
