@@ -74,7 +74,10 @@ sub get_parts_list {
 
 sub print_bom {
 	my ($schematic, $items) = @_;
-	print "$schematic:\n";
+
+	# Split the path.
+	my @spath = split(/[\/\\]/, $schematic);
+	print "\n" . $spath[-1] . ":\n\n";
 
 	foreach my $key (keys $items) {
 		my $part = $items->{$key};
@@ -85,13 +88,14 @@ sub print_bom {
 		my $value    = $part->{"value"};
 
 		# Print stuff.
-		print "$quantity  $value";
+		#print colored("$quantity  ", "red") . colored("$value", "yellow");
+		print "$quantity  ". colored("$value", "yellow");
 
 		if ($value ne "") {
 			print " ";
 		}
 
-		print "$device ";
+		print colored("$device ", "green");
 
 		if ($pkg ne "") {
 			print "($pkg)";
