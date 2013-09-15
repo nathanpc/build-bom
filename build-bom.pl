@@ -53,7 +53,7 @@ sub get_parts_list {
 		my $key_name = $part->getAttribute("deviceset") . $value;
 		my $item = {
 			"quantity" => 1,
-			"name"     => $part->getAttribute("name"),
+			"names"    => $part->getAttribute("name"),
 			"device"   => $part->getAttribute("deviceset"),
 			"package"  => $part->getAttribute("device"),
 			"value"    => $value
@@ -63,6 +63,7 @@ sub get_parts_list {
 		if (defined $items->{$key_name}) {
 			# Just add to the quantity.
 			$items->{$key_name}->{"quantity"}++;
+			$items->{$key_name}->{"names"} .= " " . $part->getAttribute("name");
 		} else {
 			# New item.
 			$items->{$key_name} = $item;
@@ -72,8 +73,9 @@ sub get_parts_list {
 	return $items;
 }
 
+# Pretty-print the BOM.
 sub print_bom {
-	my ($schematic, $items) = @_;
+	my ($schematic, $items, $show_names) = @_;
 
 	# Split the path.
 	my @spath = split(/[\/\\]/, $schematic);
@@ -82,15 +84,19 @@ sub print_bom {
 	foreach my $key (keys $items) {
 		my $part = $items->{$key};
 		my $quantity = $part->{"quantity"};
-		my $name     = $part->{"name"};
+		my $names    = $part->{"names"};
 		my $device   = $part->{"device"};
 		my $pkg      = $part->{"package"};
 		my $value    = $part->{"value"};
 
 		# Print stuff.
-		#print colored("$quantity  ", "red") . colored("$value", "yellow");
-		print "$quantity  ". colored("$value", "yellow");
+		print "$quantity ";
 
+		if ($show_names) {
+			print "[" . colored($names, "red") . "]";
+		}
+
+		print colored(" $value", "yellow");
 		if ($value ne "") {
 			print " ";
 		}
@@ -110,10 +116,9 @@ sub print_bom {
 #GetOptions("convert|c" => \$convert);
 
 # Gets the schematic file from the last argument.
-# TODO: Append the .sch automatically if it wasn't supplied.
 my $schematic = $ARGV[-1];
 
 my $items = get_parts_list($schematic);
 #print Dumper($items);
 
-print_bom($schematic, $items);
+print_bom($schematic, $items, 1);
