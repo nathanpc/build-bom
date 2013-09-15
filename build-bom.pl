@@ -11,10 +11,12 @@
 
 use strict;
 use warnings;
+use utf8;
 use Data::Dumper;
 
 use Getopt::Long;
 use XML::LibXML;
+use Term::ANSIColor;
 
 
 # Gets the list of parts in a hash.
@@ -28,40 +30,75 @@ sub get_parts_list {
 	# Find the nodes.
 	my $parts = $xml->findnodes("/eagle/drawing/schematic/parts/part");
 	my $items = {};
-	
+
 	# Parse each element.
 	foreach my $part ($parts->get_nodelist()) {
 		# Should this part be ignored?
 		if ($part->getAttribute("library") =~ /(supply[0-9]*)/) {
 			next;
 		}
-		
+
 		# Get a value (if defined).
 		my $value = $part->getAttribute("value");
 		if (!defined $value) {
 			$value = "";
+		} else {
+			# Encode $value so it doesn't generate a warning when you try to print the ohms symbol.
+			if (utf8::is_utf8($value)) {
+				utf8::encode($value);
+			}
 		}
-		
+
 		# Create the item hash.
 		my $key_name = $part->getAttribute("deviceset") . $value;
 		my $item = {
 			"quantity" => 1,
-			"name" => $part->getAttribute("name"),
-			"device" => $part->getAttribute("deviceset"),
-			"value" => $value
+			"name"     => $part->getAttribute("name"),
+			"device"   => $part->getAttribute("deviceset"),
+			"package"  => $part->getAttribute("device"),
+			"value"    => $value
 		};
-		
+
 		# Check if the item already exists
 		if (defined $items->{$key_name}) {
 			# Just add to the quantity.
 			$items->{$key_name}->{"quantity"}++;
 		} else {
 			# New item.
-		$items->{$key_name} = $item;
+			$items->{$key_name} = $item;
 		}
 	}
 
 	return $items;
+}
+
+sub print_bom {
+	my ($schematic, $items) = @_;
+	print "$schematic:\n";
+
+	foreach my $key (keys $items) {
+		my $part = $items->{$key};
+		my $quantity = $part->{"quantity"};
+		my $name     = $part->{"name"};
+		my $device   = $part->{"device"};
+		my $pkg      = $part->{"package"};
+		my $value    = $part->{"value"};
+
+		# Print stuff.
+		print "$quantity  $value";
+
+		if ($value ne "") {
+			print " ";
+		}
+
+		print "$device ";
+
+		if ($pkg ne "") {
+			print "($pkg)";
+		}
+
+		print "\n";
+	}
 }
 
 # Setup Getopt.
@@ -73,4 +110,6 @@ sub get_parts_list {
 my $schematic = $ARGV[-1];
 
 my $items = get_parts_list($schematic);
-print Dumper($items);
+#print Dumper($items);
+
+print_bom($schematic, $items);
