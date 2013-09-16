@@ -19,6 +19,18 @@ use Term::ANSIColor;
 use JSON;
 
 
+# Usage message.
+sub usage {
+	print "Usage: build_bom.pl [-n] [-e format] schematic_file|directory\n\n";
+
+	print "Arguments:\n";
+	print "    -h\t\tThis message\n";
+	print "    -n\t\tShow parts schematic IDs\n";
+	print "    -e format\tExport BOM (pipe the output into a file to export to a file)\n";
+
+	print "\nExport Formats: json, csv, html\n";
+}
+
 # Gets the list of parts in a hash.
 sub get_parts_list {
 	my ($schematic) = @_;
@@ -81,59 +93,67 @@ sub get_parts_list {
 
 # Pretty-print the BOM.
 sub print_bom {
-	my ($schematic, $items, $show_names) = @_;
+	my ($ref_items, $show_names) = @_;
+	my @items = @{ $ref_items };
+	my $print_separator = 0;
 
-	# Split the path.
-	my @spath = split(/[\/\\]/, $schematic);
-	print $spath[-1] . ":\n\n";
-
-	foreach my $key (keys $items) {
-		my $part = $items->{$key};
-		my $quantity = $part->{"quantity"};
-		my $names    = join(" ", @{ $part->{"names"} });
-		my $device   = $part->{"device"};
-		my $pkg      = $part->{"package"};
-		my $value    = $part->{"value"};
-
-		# Print stuff.
-		print "$quantity ";
-
-		if ($show_names) {
-			print "[" . colored($names, "red") . "]";
+	foreach my $schematic (@items) {
+		# Print filename separator?
+		if ($print_separator) {
+			print "\n\n";
 		}
 
-		print colored(" $value", "yellow");
-		if ($value ne "") {
-			print " ";
+		# Print filename.
+		print $schematic->{"name"} . ":\n\n";
+		$print_separator = 1;
+
+		foreach my $key (keys $schematic->{"parts"}) {
+			my $part     = $schematic->{"parts"}->{$key};
+			my $quantity = $part->{"quantity"};
+			my $names    = join(" ", @{ $part->{"names"} });
+			my $device   = $part->{"device"};
+			my $pkg      = $part->{"package"};
+			my $value    = $part->{"value"};
+
+			# Print stuff.
+			print "$quantity ";
+
+			if ($show_names) {
+				print "[" . colored($names, "red") . "]";
+			}
+
+			print colored(" $value", "yellow");
+			if ($value ne "") {
+				print " ";
+			}
+
+			print colored("$device ", "green");
+
+			if ($pkg ne "") {
+				print "($pkg)";
+			}
+
+			print "\n";
 		}
-
-		print colored("$device ", "green");
-
-		if ($pkg ne "") {
-			print "($pkg)";
-		}
-
-		print "\n";
 	}
 }
 
 # Exporting.
 sub export {
-	my ($format, $schematic, $items) = @_;
+	my ($format, $ref_items) = @_;
+	my @items = @{ $ref_items };
+	my $export_data = {};
 
 	if ($format eq "json") {
 		# JSON
-		my @arr_items;
-		foreach my $key (keys $items) {
-			my $part = $items->{$key};
-			push(@arr_items, $part);
-		}
+		foreach my $schematic (@items) {
+			my @arr_items;
+			foreach my $key (keys $schematic->{"parts"}) {
+				push(@arr_items, $schematic->{"parts"}->{$key});
+			}
 
-		# Extract file name.
-		my @spath = split(/[\/\\]/, $schematic);
-		my $export_data = {
-			$spath[-1] => \@arr_items
-		};
+			$export_data->{$schematic->{"name"}} = \@arr_items;
+		}
 
 		# Print JSON.
 		print to_json($export_data, {
@@ -141,53 +161,66 @@ sub export {
 		});
 	} elsif ($format eq "csv") {
 		# CSV
-		foreach my $key (keys $items) {
-			my $part = $items->{$key};
-			my $quantity = $part->{"quantity"};
-			my $names    = join(" ", @{ $part->{"names"} });
-			my $device   = $part->{"device"};
-			my $pkg      = $part->{"package"};
-			my $value    = $part->{"value"};
+		foreach my $schematic (@items) {
+			print $schematic->{"name"} . ",\n";
 
-			print "$quantity,$names,$value,$device,$pkg,\n";
+			foreach my $key (keys $schematic->{"parts"}) {
+				my $part     = $schematic->{"parts"}->{$key};
+				my $quantity = $part->{"quantity"};
+				my $names    = join(" ", @{ $part->{"names"} });
+				my $device   = $part->{"device"};
+				my $pkg      = $part->{"package"};
+				my $value    = $part->{"value"};
+
+				print "$quantity,$names,$value,$device,$pkg,\n";
+			}
+
+			print "\n";
 		}
 	} elsif ($format eq "html") {
 		# HTTP
 		print "<!DOCTYPE html>\n<html>\n\t<head>\n";
 		print "\t\t<meta charset=\"utf-8\">\n";
 		print "\t\t<title>Bill of Materials</title>\n";
-		print "\t\t<style>table > tbody > tr > td { padding: 0px 10px; }</style>\n";
+		print "\t\t<style>table > tbody > tr > td { padding: 0px 10px; }\nh3 { margin: 0; }\ntable { margin-bottom: 30px; }</style>\n";
 		print "\t</head>\n\t<body>\n";
 
-		# Table header.
-		print "\t\t<table><thead>\n\t\t\t<tr>\n";
-		print "\t\t\t\t<th>Quantity</th>\n";
-		print "\t\t\t\t<th>IDs</th>\n";
-		print "\t\t\t\t<th>Value</th>\n";
-		print "\t\t\t\t<th>Device</th>\n";
-		print "\t\t\t\t<th>Package</th>\n";
-		print "\t\t\t</tr></thead><tbody>\n";
+		foreach my $schematic (@items) {
+			print "\t\t<h3>" . $schematic->{"name"} . "</h3>\n";
 
-		# Populate table.
-		foreach my $key (keys $items) {
-			my $part = $items->{$key};
-			my $quantity = $part->{"quantity"};
-			my $names    = join(" ", @{ $part->{"names"} });
-			my $device   = $part->{"device"};
-			my $pkg      = $part->{"package"};
-			my $value    = $part->{"value"};
+			# Table header.
+			print "\t\t<table><thead>\n\t\t\t<tr>\n";
+			print "\t\t\t\t<th>Quantity</th>\n";
+			print "\t\t\t\t<th>IDs</th>\n";
+			print "\t\t\t\t<th>Value</th>\n";
+			print "\t\t\t\t<th>Device</th>\n";
+			print "\t\t\t\t<th>Package</th>\n";
+			print "\t\t\t</tr></thead><tbody>\n";
 
-			print "\t\t\t<tr>\n";
-			print "\t\t\t\t<td>$quantity</td>\n";
-			print "\t\t\t\t<td>$names</td>\n";
-			print "\t\t\t\t<td>$value</td>\n";
-			print "\t\t\t\t<td>$device</td>\n";
-			print "\t\t\t\t<td>$pkg</td>\n";
-			print "\t\t\t</tr>\n";
+			# Populate table.
+			foreach my $key (keys $schematic->{"parts"}) {
+				my $part     = $schematic->{"parts"}->{$key};
+				my $quantity = $part->{"quantity"};
+				my $names    = join(" ", @{ $part->{"names"} });
+				my $device   = $part->{"device"};
+				my $pkg      = $part->{"package"};
+				my $value    = $part->{"value"};
+
+				print "\t\t\t<tr>\n";
+				print "\t\t\t\t<td>$quantity</td>\n";
+				print "\t\t\t\t<td>$names</td>\n";
+				print "\t\t\t\t<td>$value</td>\n";
+				print "\t\t\t\t<td>$device</td>\n";
+				print "\t\t\t\t<td>$pkg</td>\n";
+				print "\t\t\t</tr>\n";
+			}
+
+			# Close table.
+			print "</tbody>\n\t\t</table>\n\n";
 		}
 
-		# Closing everything.
-		print "</tbody>\n\t\t</table>\n\t</body>\n</html>";
+		# Close the rest.
+		print "\t</body>\n</html>\n";
 	} else {
 		# Unknown
 		print colored("Error: ", "red") . "Unknown export format \"$format\". The available options are: json, csv, html\n";
@@ -204,31 +237,58 @@ sub main {
 			   "help|h" => \$show_help,
 			   "export|e=s" => \$export_format);
 
-	# No arguments.
+	# No arguments or -h.
 	if ($arg_num == -1 or $show_help) {
 		# Show help!
-		print "Usage: build_bom.pl [-n] [-e format] schematic_file\n\n";
-
-		print "Arguments:\n";
-		print "    -h\t\tThis message\n";
-		print "    -n\t\tShow parts schematic IDs\n";
-		print "    -e format\tExport BOM (pipe the output into a file to export to a file)\n";
-
-		print "\nExport Formats: json, csv, html\n";
-
+		usage();
 		return;
 	}
 
 	# Gets the schematic file from the last argument and parse it.
 	my $schematic = $ARGV[-1];
-	my $items = get_parts_list($schematic);
+	my @items;
+
+	# Check if it's a file or a directory.
+	if (-f $schematic) {
+		# File.
+		my @spath = split(/[\/\\]/, $schematic);
+
+		# Append the schematic.
+		push(@items, {
+			"name" => $spath[-1],
+			"parts" => get_parts_list($schematic)
+		});
+	} elsif (-d $schematic) {
+		# Directory.
+		opendir(DIR, $schematic) or die $!;
+
+		while (my $file = readdir(DIR)) {
+			# Only files ending in .sch, please...
+			next unless (-f "$schematic/$file");
+			next unless ($file =~ /\.sch$/);
+
+			# Append the schematic.
+			push(@items, {
+				 "name" => $file,
+				 "parts" => get_parts_list("$schematic/$file")
+			});
+		}
+
+		closedir(DIR);
+	} else {
+		# If you get here there's some really fucked up shit happening.
+		print colored("Error: ", "red") . "Couldn't recognize the type of input you entered\n\n";
+		usage();
+
+		return;
+	}
 
 	if (defined $export_format) {
 		# Export the BOM.
-		export($export_format, $schematic, $items);
+		export($export_format, \@items);
 	} else {
 		# Just print the BOM as usual.
-		print_bom($schematic, $items, $show_names);
+		print_bom(\@items, $show_names);
 	}
 }
 
