@@ -35,3 +35,4 @@ With build-bom you can export your BOMs to the following formats:
 This script requires the following libraries to be installed in your Perl system, which can be installed by executing `cpan install <package name>`:
 
   - [XML::LibXML](http://search.cpan.org/dist/XML-LibXML/LibXML.pod)
+  - [JSON](http://search.cpan.org/~makamaka/JSON-2.59/lib/JSON.pm)
