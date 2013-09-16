@@ -199,14 +199,24 @@ sub main {
 	my $arg_num = $#ARGV;
 
 	# Setup Getopt.
-	my ($show_names, $export_format);
+	my ($show_names, $export_format, $show_help);
 	GetOptions("names|n" => \$show_names,
+			   "help|h" => \$show_help,
 			   "export|e=s" => \$export_format);
 
 	# No arguments.
-	if ($arg_num == -1) {
+	if ($arg_num == -1 or $show_help) {
 		# Show help!
-		print "HELP!!!!\n";
+		print "Usage: build_bom.pl [-n] [-e format] schematic_file\n\n";
+
+		print "Arguments:\n";
+		print "    -h\t\tThis message\n";
+		print "    -n\t\tShow parts schematic IDs\n";
+		print "    -e format\tExport BOM (pipe the output into a file to export to a file)\n";
+
+		print "\nExport Formats: json, csv, html\n";
+
+		return;
 	}
 
 	# Gets the schematic file from the last argument and parse it.
