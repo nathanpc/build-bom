@@ -118,25 +118,79 @@ sub print_bom {
 	}
 }
 
+# Exporting.
 sub export {
 	my ($format, $schematic, $items) = @_;
-	my @arr_items;
-
-	foreach my $key (keys $items) {
-		my $part = $items->{$key};
-		push(@arr_items, $part);
-	}
-
-	my @spath = split(/[\/\\]/, $schematic);
-	my $export_data = {
-		$spath[-1] => \@arr_items
-	};
 
 	if ($format eq "json") {
+		# JSON
+		my @arr_items;
+		foreach my $key (keys $items) {
+			my $part = $items->{$key};
+			push(@arr_items, $part);
+		}
+
+		# Extract file name.
+		my @spath = split(/[\/\\]/, $schematic);
+		my $export_data = {
+			$spath[-1] => \@arr_items
+		};
+
+		# Print JSON.
 		print to_json($export_data, {
 			pretty => 1
 		});
+	} elsif ($format eq "csv") {
+		# CSV
+		foreach my $key (keys $items) {
+			my $part = $items->{$key};
+			my $quantity = $part->{"quantity"};
+			my $names    = join(" ", @{ $part->{"names"} });
+			my $device   = $part->{"device"};
+			my $pkg      = $part->{"package"};
+			my $value    = $part->{"value"};
+
+			print "$quantity,$names,$value,$device,$pkg,\n";
+		}
+	} elsif ($format eq "html") {
+		# HTTP
+		print "<!DOCTYPE html>\n<html>\n\t<head>\n";
+		print "\t\t<meta charset=\"utf-8\">\n";
+		print "\t\t<title>Bill of Materials</title>\n";
+		print "\t\t<style>table > tbody > tr > td { padding: 0px 10px; }</style>\n";
+		print "\t</head>\n\t<body>\n";
+
+		# Table header.
+		print "\t\t<table><thead>\n\t\t\t<tr>\n";
+		print "\t\t\t\t<th>Quantity</th>\n";
+		print "\t\t\t\t<th>IDs</th>\n";
+		print "\t\t\t\t<th>Value</th>\n";
+		print "\t\t\t\t<th>Device</th>\n";
+		print "\t\t\t\t<th>Package</th>\n";
+		print "\t\t\t</tr></thead><tbody>\n";
+
+		# Populate table.
+		foreach my $key (keys $items) {
+			my $part = $items->{$key};
+			my $quantity = $part->{"quantity"};
+			my $names    = join(" ", @{ $part->{"names"} });
+			my $device   = $part->{"device"};
+			my $pkg      = $part->{"package"};
+			my $value    = $part->{"value"};
+
+			print "\t\t\t<tr>\n";
+			print "\t\t\t\t<td>$quantity</td>\n";
+			print "\t\t\t\t<td>$names</td>\n";
+			print "\t\t\t\t<td>$value</td>\n";
+			print "\t\t\t\t<td>$device</td>\n";
+			print "\t\t\t\t<td>$pkg</td>\n";
+			print "\t\t\t</tr>\n";
+		}
+
+		# Closing everything.
+		print "</tbody>\n\t\t</table>\n\t</body>\n</html>";
 	} else {
+		# Unknown
 		print colored("Error: ", "red") . "Unknown export format \"$format\". The available options are: json, csv, html\n";
 	}
 }
