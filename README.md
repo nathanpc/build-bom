@@ -14,6 +14,15 @@ build-bom supports the following packages:
 If you want your package to be added, please [open a Issue](https://github.com/nathanpc/build-bom/issues/new) providing the package name, a schematic file, and a PDF (or image) of the schematic. I'll implement support for your CAD package as soon as possible.
 
 
+## Exporting
+
+With build-bom you can export your BOMs to the following formats:
+
+  - JSON
+  - CSV
+  - HTML
+
+
 ## Requirements
 
 This script requires the following libraries to be installed in your Perl system, which can be installed by executing `cpan install <package name>`:
