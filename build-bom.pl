@@ -7,7 +7,6 @@
 # TODO:
 #   - Just run it in a directory and it'll automatically get all the *.sch files, and display the BOMs for each one of them.
 #   - Add a option to list the parts in the order that they appear in the board layout (to make hand assembling easier).
-#   - Export to various formats like CSV, JSON, HTML, etc.
 
 use strict;
 use warnings;
