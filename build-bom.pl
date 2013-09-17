@@ -13,6 +13,7 @@ use Getopt::Long;
 use XML::LibXML;
 use Term::ANSIColor;
 use JSON;
+use File::Slurp;
 
 
 # Usage message.
@@ -27,60 +28,147 @@ sub usage {
 	print "\nExport Formats: json, csv, html\n";
 }
 
+sub check_program {
+	my ($filename) = @_;
+	my $header = "";
+
+	# Read the file header.
+	open(SCHFILE, '<', $filename);
+	for (my $line = 0; $line < 3; $line++) {
+		$header .= <SCHFILE>;
+	}
+	close(SCHFILE);
+
+	if ($header =~ /\<\!DOCTYPE eagle SYSTEM "eagle.dtd"\>/) {
+		return "eagle";
+	} elsif ($header =~ /Cmp-Mod/) {
+		return "kicad";
+	} else {
+		print colored("Error: ", "red") . "Couldn't identify the file format.\n\n";
+		print "Supported formats are:\n";
+		print "  - *.sch EAGLE schematics\n";
+		print "  - *.cmp KiCAD file\n";
+
+		die;
+		#return "unknown";
+	}
+}
+
 # Gets the list of parts in a hash.
 sub get_parts_list {
-	my ($schematic) = @_;
-
-	# Setup the XML parser and stuff.
-	my $parser = XML::LibXML->new();
-	my $xml = $parser->parse_file($schematic);
-
-	# Find the nodes.
-	my $parts = $xml->findnodes("/eagle/drawing/schematic/parts/part");
+	my ($program, $schematic) = @_;
 	my $items = {};
 
-	# Parse each element.
-	foreach my $part ($parts->get_nodelist()) {
-		# Should this part be ignored?
-		if ($part->getAttribute("library") =~ /(supply[0-9]*)/) {
-			next;
-		}
+	if ($program eq "eagle") {
+		# EAGLE.
 
-		# Get a value (if defined).
-		my $value = $part->getAttribute("value");
-		if (!defined $value) {
-			$value = "";
-		} else {
-			# Encode $value so it doesn't generate a warning when you try to print the ohms symbol.
-			if (utf8::is_utf8($value)) {
-				utf8::encode($value);
+		# Setup the XML parser and stuff.
+		my $parser = XML::LibXML->new();
+		my $xml = $parser->parse_file($schematic);
+
+		# Find the nodes.
+		my $parts = $xml->findnodes("/eagle/drawing/schematic/parts/part");
+
+		# Parse each element.
+		foreach my $part ($parts->get_nodelist()) {
+			# Should this part be ignored?
+			if ($part->getAttribute("library") =~ /(supply[0-9]*)/) {
+				next;
+			}
+
+			# Get a value (if defined).
+			my $value = $part->getAttribute("value");
+			if (!defined $value) {
+				$value = "";
+			} else {
+				# Encode $value so it doesn't generate a warning when you try to print the ohms symbol.
+				if (utf8::is_utf8($value)) {
+					utf8::encode($value);
+				}
+			}
+
+			# Create a key name and remove any special characters from it.
+			my $key_name = $part->getAttribute("deviceset") . $value;
+			$key_name =~ s/[^[:print:]]/_/g;
+
+			# Create the item hash.
+			my $item = {
+				"quantity" => 1,
+				"names"    => [ $part->getAttribute("name") ],
+				"device"   => $part->getAttribute("deviceset"),
+				"package"  => $part->getAttribute("device"),
+				"value"    => $value
+			};
+
+			# Check if the item already exists
+			if (defined $items->{$key_name}) {
+				# Just add to the quantity.
+				$items->{$key_name}->{"quantity"}++;
+
+				my @names = @{ $items->{$key_name}->{"names"} };
+				push(@names, $part->getAttribute("name"));
+				$items->{$key_name}->{"names"} = \@names;
+			} else {
+				# New item.
+				$items->{$key_name} = $item;
 			}
 		}
+	} elsif ($program eq "kicad") {
+		# KiCAD.
+		my $file = read_file($schematic);
 
-		# Create a key name and remove any special characters from it.
-		my $key_name = $part->getAttribute("deviceset") . $value;
-		$key_name =~ s/[^[:print:]]/_/g;
+		# Iterate through the component block.
+		while ($file =~ /BeginCmp(.+?)EndCmp/sg) {
+			my $cmpblock = $1;
+			chomp $cmpblock;
 
-		# Create the item hash.
-		my $item = {
-			"quantity" => 1,
-			"names"    => [ $part->getAttribute("name") ],
-			"device"   => $part->getAttribute("deviceset"),
-			"package"  => $part->getAttribute("device"),
-			"value"    => $value
-		};
+			my ($key_name, $name, $device, $pkg, $value);
 
-		# Check if the item already exists
-		if (defined $items->{$key_name}) {
-			# Just add to the quantity.
-			$items->{$key_name}->{"quantity"}++;
+			# Iterate through the block lines.
+			while ($cmpblock =~ /(.+)[^;\n]/g) {
+				my @pair = split(/\s+=\s+/, $1);
+				$pair[1] =~ s/;//;
 
-			my @names = @{ $items->{$key_name}->{"names"} };
-			push(@names, $part->getAttribute("name"));
-			$items->{$key_name}->{"names"} = \@names;
-		} else {
-			# New item.
-			$items->{$key_name} = $item;
+				if ($pair[0] eq "Reference") {
+					# Part ID.
+					$name = $pair[1];
+				} elsif ($pair[0] eq "ValeurCmp") {
+					# Check if it's a value or a device name.
+					if ($pair[1] =~ /^[0-9]+[a-zA-Z]+$/) {
+						# Value.
+						$value = $pair[1];
+						$device = "";
+					} else {
+						# Device.
+						$device = $pair[1];
+						$value = "";
+					}
+				} elsif ($pair[0] eq "IdModule") {
+					$pkg = $pair[1];
+				}
+			}
+
+			$key_name = "$pkg-$value$device";
+			my $item = {
+				"quantity" => 1,
+				"names"    => [ $name ],
+				"device"   => $device,
+				"package"  => $pkg,
+				"value"    => $value
+			};
+
+			# Check if the item already exists
+			if (defined $items->{$key_name}) {
+				# Just add to the quantity.
+				$items->{$key_name}->{"quantity"}++;
+
+				my @names = @{ $items->{$key_name}->{"names"} };
+				push(@names, $name);
+				$items->{$key_name}->{"names"} = \@names;
+			} else {
+				# New item.
+				$items->{$key_name} = $item;
+			}
 		}
 	}
 
@@ -248,25 +336,27 @@ sub main {
 	if (-f $schematic) {
 		# File.
 		my @spath = split(/[\/\\]/, $schematic);
+		my $program = check_program($schematic);
 
 		# Append the schematic.
 		push(@items, {
 			"name" => $spath[-1],
-			"parts" => get_parts_list($schematic)
+			"parts" => get_parts_list($program, $schematic)
 		});
 	} elsif (-d $schematic) {
 		# Directory.
 		opendir(DIR, $schematic) or die $!;
 
 		while (my $file = readdir(DIR)) {
-			# Only files ending in .sch, please...
+			# Only files with supported extensions, please...
 			next unless (-f "$schematic/$file");
-			next unless ($file =~ /\.sch$/);
+			next unless ($file =~ /\.(sch)|(cmp)$/);
+			my $program = check_program("$schematic/$file");
 
 			# Append the schematic.
 			push(@items, {
 				 "name" => $file,
-				 "parts" => get_parts_list("$schematic/$file")
+				 "parts" => get_parts_list($program, "$schematic/$file")
 			});
 		}
 
