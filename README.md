@@ -7,9 +7,9 @@ A simple Perl script to build BOMs from schematic files.
 
 Some screenshots of the program running:
 
-![A little example](http://screencloud.net/img/screenshots/3fd4c504d70fd7133e1ad97c85b27b79.png)
+![A little example](http://i.imgur.com/8cn89F7.png)
 
-![An example showing the extended view](http://screencloud.net/img/screenshots/3cf883e87e9a75f21541a1b28857c79f.png)
+![An example showing the extended view](http://i.imgur.com/NZrKEoD.png)
 
 
 ## File Support
