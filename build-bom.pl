@@ -22,7 +22,7 @@ sub usage {
 
 	print "Arguments:\n";
 	print "    -h\t\tThis message\n";
-	print "    -n\t\tShow parts schematic IDs\n";
+	print "    -s\t\tHide the component IDs\n";
 	print "    -e format\tExport BOM (pipe the output into a file to export to a file)\n";
 
 	print "\nExport Formats: json, csv, html\n";
@@ -316,8 +316,8 @@ sub main {
 	my $arg_num = $#ARGV;
 
 	# Setup Getopt.
-	my ($show_names, $export_format, $show_help);
-	GetOptions("names|n" => \$show_names,
+	my ($hide_names, $export_format, $show_help);
+	GetOptions("simple|s" => \$hide_names,
 			   "help|h" => \$show_help,
 			   "export|e=s" => \$export_format);
 
@@ -374,7 +374,7 @@ sub main {
 		export($export_format, \@items);
 	} else {
 		# Just print the BOM as usual.
-		print_bom(\@items, $show_names);
+		print_bom(\@items, !$hide_names);
 	}
 }
 
