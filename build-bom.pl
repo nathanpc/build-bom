@@ -7,14 +7,18 @@
 use strict;
 use warnings;
 use utf8;
-#use Data::Dumper;
+use Data::Dumper;
+
+use Tk;
+require Tk::HList;
 
 use Getopt::Long;
 use XML::LibXML;
 use Term::ANSIColor;
 use JSON;
 use File::Slurp;
-
+use Encode;
+use List::MoreUtils qw(uniq);
 
 # Usage message.
 sub usage {
@@ -28,6 +32,7 @@ sub usage {
 	print "\nExport Formats: json, csv, html\n";
 }
 
+# Check which program created the file.
 sub check_program {
 	my ($filename) = @_;
 	my $header = "";
@@ -222,6 +227,83 @@ sub print_bom {
 	}
 }
 
+# Show the BOM in a GUI.
+sub show_gui {
+	my ($ref_items, $show_names) = @_;
+	my @items = @{ $ref_items };
+	my @tree_items;
+
+	foreach my $schematic (@items) {
+		# Filename root.
+		my $root = $schematic->{"name"};
+		push(@tree_items, $root);
+
+		foreach my $key (keys $schematic->{"parts"}) {
+			my $part     = $schematic->{"parts"}->{$key};
+			my $quantity = $part->{"quantity"};
+			my @names    = @{ $part->{"names"} };
+			my $device   = $part->{"device"};
+			my $pkg      = $part->{"package"};
+			my $value    = $part->{"value"};
+
+			# Build the root path.
+			my $device_root = "$device";
+			if ($pkg ne "") {
+				$device_root .= " ($pkg)";
+			}
+
+			my $device_path = "$root;$device_root";
+			push(@tree_items, $device_path);
+
+			# Build the value path
+			if ($value ne "") {
+				$device_path = "$device_path;$quantity" . "x $value";
+				push(@tree_items, $device_path);
+			}
+
+			# Finally list the names.
+			if ($show_names) {
+				foreach my $name (@names) {
+					push(@tree_items, "$device_path;$name");
+				}
+			}
+		}
+	}
+
+	# Setup the window.
+	my $main_window = MainWindow->new();
+	$main_window->title("Build BOM");
+
+	$main_window->Label(-text => "Components")->pack();
+
+	# Setup the TreeView.
+	my $tree = $main_window->Scrolled(
+		"HList",
+		-scrollbars => "osoe",
+		-itemtype   => "text",
+		-separator  => ";",
+		-selectmode => "single",
+		-width      => 45,
+		-height     => 35,
+		-browsecmd  => sub {
+			my $path = shift;
+			print "$path\n";
+		});
+
+	# Populate the TreeView.
+	@tree_items = sort { lc($a) cmp lc($b) } @tree_items;
+	@tree_items = uniq @tree_items;
+	foreach my $path (@tree_items) {
+		$tree->add(
+			$path,
+			-text => decode("utf8", (split(";", $path))[-1]));
+	}
+
+	# Display.
+	$tree->pack();
+	MainLoop();
+}
+
 # Exporting.
 sub export {
 	my ($format, $ref_items) = @_;
@@ -316,8 +398,9 @@ sub main {
 	my $arg_num = $#ARGV;
 
 	# Setup Getopt.
-	my ($hide_names, $export_format, $show_help);
+	my ($hide_names, $no_gui, $export_format, $show_help);
 	GetOptions("simple|s" => \$hide_names,
+			   "nogui|n" => \$no_gui,
 			   "help|h" => \$show_help,
 			   "export|e=s" => \$export_format);
 
@@ -369,12 +452,16 @@ sub main {
 		return;
 	}
 
+	# Display the output accordingly.
 	if (defined $export_format) {
 		# Export the BOM.
 		export($export_format, \@items);
-	} else {
+	} elsif ($no_gui) {
 		# Just print the BOM as usual.
 		print_bom(\@items, !$hide_names);
+	} else {
+		# Show the BOM with a GUI.
+		show_gui(\@items, !$hide_names);
 	}
 }
 

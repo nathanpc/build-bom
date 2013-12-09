@@ -38,3 +38,5 @@ This script requires the following libraries to be installed in your Perl system
   - [XML::LibXML](http://search.cpan.org/dist/XML-LibXML/LibXML.pod)
   - [JSON](http://search.cpan.org/~makamaka/JSON-2.59/lib/JSON.pm)
   - [File::Slurp](http://search.cpan.org/~uri/File-Slurp-9999.19/lib/File/Slurp.pm)
+  - [Perl/Tk](http://search.cpan.org/~ni-s/Tk-804.027/pod/UserGuide.pod)
+  - [List::MoreUtils](http://search.cpan.org/~adamk/List-MoreUtils-0.33/lib/List/MoreUtils.pm)
