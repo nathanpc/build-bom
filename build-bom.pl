@@ -130,7 +130,7 @@ sub get_parts_list {
 			my ($key_name, $name, $device, $pkg, $value);
 
 			# Iterate through the block lines.
-			while ($cmpblock =~ /(.+)[^;\n]/g) {
+			while ($cmpblock =~ /(.+)[^\n]/g) {
 				my @pair = split(/\s+=\s+/, $1);
 				$pair[1] =~ s/;//;
 
